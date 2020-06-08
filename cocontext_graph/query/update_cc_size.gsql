@@ -1,0 +1,55 @@
+CREATE QUERY update_cc_size(
+  DATETIME start_date_time,
+  DATETIME end_date_time
+) FOR GRAPH MyGraph { 
+  MinAccum<INT> @cc_id = 0;
+  MinAccum<INT> @old_id = 0;
+  OrAccum<BOOL> @active;
+  MapAccum<INT, SumAccum<INT>> @@comp_sizes;
+
+  all_accounts = {Account.*};
+  start =
+    SELECT s
+    FROM all_accounts:s
+    POST-ACCUM 
+      s.@cc_id = getvid(s),
+      s.@old_id = getvid(s)
+  ;
+  
+  WHILE start.size() > 0 DO
+    start = 
+      SELECT t
+      FROM start:s -(co_ip:e)-> Account:t
+      WHERE (e.create_time BETWEEN start_date_time AND end_date_time)
+      ACCUM t.@cc_id += s.@cc_id
+      POST-ACCUM
+        CASE
+          WHEN 
+            t.@old_id != t.@cc_id
+          THEN
+            t.@old_id = t.@cc_id,
+            t.@active = TRUE
+          ELSE
+            t.@active = FALSE
+          END
+      HAVING t.@active == TRUE
+    ;
+  END;
+  
+  all_accounts =
+    SELECT s
+    FROM all_accounts:s
+    POST-ACCUM @@comp_sizes += (s.@cc_id -> 1)
+  ;
+  
+  UPDATE s FROM all_accounts:s
+    SET s.cc_size = @@comp_sizes.get(s.@cc_id),
+        s.cc_update_time = now()
+  ;
+  
+  PRINT
+    @@comp_sizes.size() AS num_cc_updated,
+    all_accounts.size() AS num_vertices_updated,
+    now() AS current_time
+  ;
+}

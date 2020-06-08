@@ -1,0 +1,16 @@
+/* 
+load co-context edges from json file
+*/
+DROP JOB load_co_context_edges_json
+CREATE LOADING JOB load_co_context_edges_json FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO EDGE co_ip VALUES (
+            $"src_node", 
+            $"tgt_node", 
+            $"edge_attrs":"context", 
+            REDUCE(max($"edge_attrs":"create_time")),
+            REDUCE(min($"edge_attrs": "time_diff"))
+        ) WHERE $"edge_type" == "co_ip"
+    USING JSON_FILE="true";
+}

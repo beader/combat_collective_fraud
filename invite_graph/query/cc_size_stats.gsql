@@ -1,0 +1,37 @@
+CREATE QUERY cc_size_stats() FOR GRAPH MyGraph { 
+	GroupByAccum<VERTEX ancestor, SumAccum<INT> cnt> @@cc_sizes;
+	MaxAccum<VERTEX> @ancestor;
+	
+  all_accounts = {Account.*};
+	all_accounts =
+	  SELECT t
+	  FROM all_accounts:t
+	  POST-ACCUM t.@ancestor = t
+	;
+	
+  ancestors =
+    SELECT t
+    FROM all_accounts:t
+    WHERE t.outdegree("invite") > 0 AND t.outdegree("reverse_invite") == 0
+    ACCUM t.@ancestor = t
+  ;
+	
+	children = ancestors;
+  WHILE (children.size() > 0) DO
+    children =
+      SELECT t
+      FROM children:s -(invite:e)-> Account:t
+      ACCUM t.@ancestor = s.@ancestor
+	  ;
+  END;
+	
+	_t0 =
+	  SELECT t
+	  FROM all_accounts:t
+	  POST-ACCUM @@cc_sizes += (t.@ancestor -> 1)
+	;
+	
+	FOREACH (ancestor, cnt) in @@cc_sizes DO
+	  PRINT ancestor, cnt;
+	END;
+}

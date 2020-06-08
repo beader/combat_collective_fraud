@@ -1,0 +1,20 @@
+CREATE VERTEX Account (PRIMARY_ID phone_no STRING, reg_time DATETIME, reg_date STRING, label INT, cc_size INT DEFAULT 1) 
+    WITH STATS="outdegree_by_edgetype", primary_id_as_attribute="true"
+
+CREATE VERTEX IMEI (PRIMARY_ID imei STRING) 
+    WITH STATS="outdegree_by_edgetype", primary_id_as_attribute="true"
+
+CREATE VERTEX IP (PRIMARY_ID ip STRING)
+    WITH STATS="outdegree_by_edgetype", primary_id_as_attribute="true"
+
+CREATE VERTEX BonusOrder (PRIMARY_ID id STRING, order_date STRING)
+    WITH STATS="outdegree_by_edgetype", primary_id_as_attribute="true"
+
+CREATE UNDIRECTED EDGE use_imei (FROM Account, TO IMEI)
+CREATE UNDIRECTED EDGE use_ip (FROM Account, TO IP)
+
+CREATE DIRECTED EDGE send_bonus (FROM Account, TO BonusOrder) WITH REVERSE_EDGE="reverse_send_bonus"
+CREATE DIRECTED EDGE recv_bonus (FROM BonusOrder, TO Account) WITH REVERSE_EDGE="reverse_recv_bonus"
+CREATE DIRECTED EDGE invite (FROM Account, TO Account) WITH REVERSE_EDGE="reverse_invite"
+
+CREATE GRAPH MyGraph (*)

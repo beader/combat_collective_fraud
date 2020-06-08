@@ -1,0 +1,21 @@
+CREATE QUERY get_comp_orders(SET<VERTEX<Account>> ancestor_ids) FOR GRAPH MyGraph {
+  children = {ancestor_ids};
+  res_accounts = {ancestor_ids};
+  
+  WHILE children.size() > 0 DO
+    children =
+      SELECT t
+      FROM children -(invite)-> Account:t
+    ;
+    res_accounts = res_accounts UNION children;
+  END;
+  
+  res_orders =
+    SELECT t
+    FROM res_accounts -()-> BonusOrder:t
+  ;
+  
+  PRINT res_accounts AS accounts,
+        res_orders AS orders
+  ;
+}

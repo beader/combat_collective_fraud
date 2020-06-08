@@ -1,0 +1,46 @@
+CREATE QUERY cc_depth_rank(INT k) FOR GRAPH MyGraph { 
+  TYPEDEF TUPLE<VERTEX ancestor, INT depth> comp_depth;
+  MaxAccum<VERTEX> @ancestor;
+  ListAccum<VERTEX> @invite_chain;
+  GroupByAccum<VERTEX ancestor, MaxAccum<INT> depth> @@comp_depth_stats;
+  HeapAccum<comp_depth>(k, depth DESC) @@comps_depth_rank;
+
+  all_accounts = {Account.*};
+  all_accounts =
+	  SELECT t
+	  FROM all_accounts:t
+	  POST-ACCUM t.@ancestor = t
+	;
+  ancestors =
+    SELECT t
+    FROM all_accounts:t
+    WHERE t.outdegree("invite") > 0 AND t.outdegree("reverse_invite") == 0
+    ACCUM t.@ancestor = t
+  ;
+
+  children = ancestors;
+  WHILE (children.size() > 0) DO
+    children =
+      SELECT t
+      FROM children:s -(invite:e)-> Account:t
+      ACCUM t.@ancestor = s.@ancestor,
+            t.@invite_chain = (s.@invite_chain + [s])
+    ;
+  END;
+
+  _t0 =
+    SELECT t
+    FROM all_accounts:t
+    ACCUM @@comp_depth_stats += (t.@ancestor -> t.@invite_chain.size())
+  ;
+
+  FOREACH (ancestor, depth) IN @@comp_depth_stats DO
+    @@comps_depth_rank += comp_depth(ancestor, depth);
+  END;
+
+  FOREACH c IN @@comps_depth_rank DO
+    PRINT c.ancestor AS ancestor,
+          c.depth AS depth
+    ;
+  END;
+}

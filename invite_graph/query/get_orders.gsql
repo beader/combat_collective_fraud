@@ -1,0 +1,8 @@
+CREATE QUERY get_orders(SET<VERTEX<Account>> accounts) FOR GRAPH MyGraph { 
+  seed = {accounts};
+  orders =
+	  SELECT t
+	  FROM seed -(send_bonus)-> BonusOrder:t
+	;
+	PRINT orders;
+}

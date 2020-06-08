@@ -1,0 +1,49 @@
+DROP JOB load_accounts
+CREATE LOADING JOB load_accounts FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO VERTEX Account VALUES(
+            $"phone", 
+            REDUCE(MIN($"reg_time")), 
+            REDUCE(MIN($"reg_date")),
+            REDUCE(MAX($"label")),
+            _
+        )
+    USING JSON_FILE="true";
+}
+
+DROP JOB load_orders
+CREATE LOADING JOB load_orders FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO VERTEX BonusOrder VALUES($"order_id", $"order_date"),
+
+		TO EDGE send_bonus VALUES($"sendr_phone", $"order_id"),
+		TO EDGE recv_bonus VALUES($"order_id", $"recvr_phone")
+    USING JSON_FILE="true";
+}
+
+DROP JOB load_refs
+CREATE LOADING JOB load_refs FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO EDGE invite VALUES($"sendr_phone", $"recvr_phone")
+    USING JSON_FILE="true";
+}
+
+
+DROP JOB load_devices
+CREATE LOADING JOB load_devices FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO EDGE use_imei VALUES($"phone", $"imei")
+    USING JSON_FILE="true";
+}
+
+DROP JOB load_ips
+CREATE LOADING JOB load_ips FOR GRAPH MyGraph {
+    DEFINE FILENAME jsonfile;
+    LOAD jsonfile
+        TO EDGE use_ip VALUES($"phone", $"ip")
+    USING JSON_FILE="true";
+}

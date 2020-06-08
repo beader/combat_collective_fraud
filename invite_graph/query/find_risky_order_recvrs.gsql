@@ -1,0 +1,32 @@
+CREATE QUERY find_risky_order_recvrs(INT th_num_sendrs_per_recvrs=3) FOR GRAPH MyGraph {
+  SetAccum<VERTEX> @order_sendrs;
+  SetAccum<VERTEX> @@risky_recvrs, @@risky_accounts, @@risky_orders;
+  all_accounts = {Account.*};
+
+  orders =
+    SELECT t
+    FROM all_accounts:s -(send_bonus:e)-> BonusOrder:t
+    ACCUM t.@order_sendrs += s
+  ;
+
+  recvrs =
+    SELECT s
+    FROM orders:s -(recv_bonus:e)-> Account:t
+    ACCUM t.@order_sendrs += s.@order_sendrs
+  ;
+
+  _t0 =
+    SELECT t
+    FROM orders:s -(recv_bonus:e)-> Account:t
+    WHERE t.@order_sendrs.size() >= th_num_sendrs_per_recvrs
+    ACCUM @@risky_recvrs += t,
+          @@risky_accounts += t.@order_sendrs,
+          @@risky_orders  += s
+  ;
+
+  PRINT @@risky_recvrs AS recvrs,
+        @@risky_accounts AS accounts,
+        @@risky_orders AS orders
+  ;
+}
+

@@ -1,0 +1,24 @@
+CREATE QUERY find_risky_imeis(INT th_num_phones_per_imei=3) FOR GRAPH MyGraph {
+  SetAccum<VERTEX> @@risky_imeis, @@risky_accounts, @@risky_orders;
+
+  all_imeis = {IMEI.*};
+
+  accounts =
+    SELECT t
+    FROM all_imeis:s -(use_imei:e)-> Account:t
+    WHERE s.outdegree("use_imei") >= th_num_phones_per_imei
+    ACCUM @@risky_imeis += s,
+          @@risky_accounts += t
+  ;
+
+  orders =
+    SELECT t
+    FROM accounts:s -(send_bonus:e)-> BonusOrder:t
+    ACCUM @@risky_orders += t
+  ;
+
+  PRINT @@risky_imeis AS imeis,
+        @@risky_accounts AS accounts,
+        @@risky_orders AS orders
+  ;
+}

@@ -1,0 +1,56 @@
+CREATE QUERY get_comp(
+  VERTEX src_v, 
+  BOOL show_orders=FALSE, 
+  BOOL show_imei=FALSE, 
+  BOOL show_ip=FALSE
+) FOR GRAPH MyGraph {
+  OrAccum @visited = FALSE;
+  SetAccum<EDGE> @@edges;
+
+  start = {src_v};
+  comp_accounts =
+    SELECT x
+    FROM start:x
+    ACCUM x.@visited += TRUE
+  ;
+
+  WHILE (start.size() > 0) DO
+    start = SELECT t
+            FROM start:s -((invite|reverse_invite):e)-> Account:t
+            WHERE t.@visited == FALSE
+            ACCUM @@edges += e, t.@visited += TRUE
+    ;
+    comp_accounts = comp_accounts UNION start;
+  END;
+
+  IF show_orders == TRUE THEN
+    orders =
+      SELECT t
+      FROM comp_accounts:s -(send_bonus:e)-> BonusOrder:t
+      ACCUM @@edges += e
+    ;
+    recvrs =
+      SELECT t
+      FROM orders:s -(recv_bonus:e)-> Account:t
+      ACCUM @@edges += e
+    ;
+  END;
+
+  IF show_imei == TRUE THEN
+    imeis =
+      SELECT t
+      FROM comp_accounts:s -(use_imei:e)-> IMEI:t
+      ACCUM @@edges += e
+    ;
+  END;
+
+  IF show_ip == TRUE THEN
+    ips =
+      SELECT t
+      FROM comp_accounts:s -(use_ip:e)-> IP:t
+      ACCUM @@edges += e
+    ;
+  END;
+
+  PRINT @@edges;
+}

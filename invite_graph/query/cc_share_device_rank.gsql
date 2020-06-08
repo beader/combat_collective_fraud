@@ -1,0 +1,47 @@
+CREATE QUERY cc_share_device_rank(INT min_comp_size, INT k) FOR GRAPH MyGraph { 
+  TYPEDEF TUPLE<VERTEX ancestor, FLOAT share_device_rate, INT num_accounts> tp_comp_sdr;
+  MaxAccum<VERTEX> @ancestor;
+  GroupByAccum<VERTEX ancestor, VERTEX imei, SetAccum<VERTEX> accounts> @@accounts_grby_anc_imei;
+  GroupByAccum<VERTEX ancestor, AvgAccum share_device_rate, SetAccum<VERTEX> accounts> @@comps_counter;
+  HeapAccum<tp_comp_sdr>(k, share_device_rate DESC) @@comps_stats;
+  all_accounts = {Account.*};
+
+  ancestors =
+    SELECT t
+    FROM all_accounts:t
+    WHERE t.outdegree("invite") > 0 AND t.outdegree("reverse_invite") == 0
+    ACCUM t.@ancestor = t
+  ;
+
+  children = ancestors;
+  WHILE (children.size() > 0) DO
+    _t0 =
+      SELECT t
+      FROM children:s -(use_imei:e)-> IMEI:t
+      ACCUM @@accounts_grby_anc_imei += (s.@ancestor, t -> s)
+    ;
+
+    children =
+      SELECT t
+      FROM children:s -(invite:e)-> Account:t
+      ACCUM t.@ancestor = s.@ancestor
+    ;
+  END;
+
+  FOREACH (ancestor, imei, accounts) IN @@accounts_grby_anc_imei DO
+    @@comps_counter += (ancestor -> accounts.size(), accounts);
+  END;
+
+  FOREACH (ancestor, share_device_rate, accounts) IN @@comps_counter DO
+    IF accounts.size() >= min_comp_size THEN
+      @@comps_stats += tp_comp_sdr(ancestor, share_device_rate, accounts.size());
+    END;
+  END;
+
+  FOREACH c IN @@comps_stats DO
+    PRINT c.ancestor AS ancestor,
+          c.share_device_rate AS share_device_rate,
+          c.num_accounts As num_accounts
+    ;
+  END;
+}

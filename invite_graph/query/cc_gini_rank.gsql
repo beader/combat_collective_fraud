@@ -1,0 +1,80 @@
+CREATE QUERY cc_gini_rank(INT k=100, INT min_comp_size=30) FOR GRAPH MyGraph {
+  TYPEDEF TUPLE<VERTEX ancestor,
+                INT comp_depth,
+                INT comp_size,
+                DOUBLE gini> tp_comp_stat;
+
+  MaxAccum<VERTEX> @ancestor;
+
+  GroupByAccum<VERTEX ancestor, VERTEX sendr,
+               SumAccum<INT> num_recvrs> @@num_recvrs_grby_ancestor_sendr;
+  MapAccum<VERTEX, MaxAccum<INT>> @@comp_depth;
+  MapAccum<VERTEX, SumAccum<INT>> @@comp_size;
+  MapAccum<VERTEX, BagAccum<INT>> @@num_recvrs_arr;
+
+  HeapAccum<tp_comp_stat>(k, gini) @@comp_stats;
+
+  INT depth = 1;
+  INT comp_depth = 0;
+  INT sum_diffs;
+  INT sum_arr;
+  DOUBLE gini;
+
+  all_accounts = {Account.*};
+  all_orders = {BonusOrder.*};
+
+  ancestors =
+    SELECT t
+    FROM all_accounts:t
+    WHERE t.outdegree("invite") > 0 AND t.outdegree("reverse_invite") == 0
+    ACCUM t.@ancestor = t,
+          @@comp_size += (t -> 1)
+  ;
+
+  children = ancestors;
+  WHILE (children.size() > 0) DO
+    children =
+      SELECT t
+      FROM children:s -(invite:e)-> Account:t
+      ACCUM t.@ancestor += s.@ancestor,
+            @@comp_depth += (s.@ancestor -> depth),
+            @@comp_size += (s.@ancestor -> 1),
+            @@num_recvrs_grby_ancestor_sendr += (s.@ancestor, s -> 1)
+    ;
+    depth = depth + 1;
+  END;
+
+  FOREACH (ancestor, sendr, num_recvrs) IN @@num_recvrs_grby_ancestor_sendr DO
+    @@num_recvrs_arr += (ancestor -> num_recvrs);
+  END;
+
+  FOREACH (ancestor, comp_size) IN @@comp_size DO
+    sum_diffs = 0;
+    sum_arr = 0;
+    gini = 0;
+    FOREACH x1 IN @@num_recvrs_arr.get(ancestor) DO
+      sum_arr = sum_arr + x1;
+      FOREACH x2 IN @@num_recvrs_arr.get(ancestor) DO
+        sum_diffs = sum_diffs + abs(x1 - x2);
+      END;
+    END;
+    gini = 0.5 * sum_diffs / (@@num_recvrs_arr.get(ancestor).size() * sum_arr);
+
+    IF comp_size >= min_comp_size THEN
+      @@comp_stats += tp_comp_stat(
+        ancestor,
+        @@comp_depth.get(ancestor),
+        comp_size,
+        gini
+      );
+    END;
+  END;
+
+  FOREACH comp_stat IN @@comp_stats DO
+    PRINT comp_stat.ancestor AS ancestor,
+          comp_stat.comp_depth AS comp_depth,
+          comp_stat.comp_size AS comp_size,
+          comp_stat.gini AS gini
+    ;
+  END;
+}

@@ -1,0 +1,8 @@
+/* Vertices */
+CREATE VERTEX Account (PRIMARY_ID id STRING, cc_size INT, cc_update_time DATETIME)
+
+/* Edges */
+CREATE UNDIRECTED EDGE co_ip (FROM Account, TO Account, ip STRING, create_time DATETIME, time_diff INT)
+
+/* Graph */
+CREATE GRAPH MyGraph (*)

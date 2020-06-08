@@ -1,0 +1,12 @@
+CREATE QUERY deg_hist(STRING edge_type) FOR GRAPH MyGraph { 
+  GroupByAccum<INT degree, SumAccum<INT> cnt> @@deg_hist;
+	
+	all_accounts = {Account.*};
+	_t0 =
+	  SELECT t
+	  FROM all_accounts:t
+	  POST-ACCUM @@deg_hist += (t.outdegree(edge_type) -> 1)
+	;
+	
+	PRINT @@deg_hist AS deg_hist;
+}

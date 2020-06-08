@@ -1,0 +1,63 @@
+CREATE QUERY cc_nonself_order_ratio_rank(INT min_num_orders, INT k) FOR GRAPH MyGraph {
+  TYPEDEF TUPLE<VERTEX ancestor,
+                INT num_orders,
+                INT num_nonself_orders,
+                DOUBLE nonself_order_ratio> tp_comp_stat;
+  MaxAccum<VERTEX> @ancestor, @order_recvr;
+  GroupByAccum<VERTEX ancestor,
+               SumAccum<INT> num_orders,
+               SumAccum<INT> num_nonself_orders> @@ancestor_order_counter;
+  HeapAccum<tp_comp_stat>(k, nonself_order_ratio DESC) @@comps_stats;
+
+  all_accounts = {Account.*};
+  all_orders = {BonusOrder.*};
+
+  ancestors =
+    SELECT t
+    FROM all_accounts:t
+    WHERE t.outdegree("invite") > 0 AND t.outdegree("reverse_invite") == 0
+    ACCUM t.@ancestor = t
+  ;
+
+  children = ancestors;
+  WHILE (children.size() > 0) DO
+    children =
+      SELECT t
+      FROM children:s -(invite:e)-> Account:t
+      ACCUM t.@ancestor = s.@ancestor
+    ;
+  END;
+
+  _t0 =
+    SELECT t
+    FROM all_orders:s -(recv_bonus:e)-> Account:t
+    ACCUM s.@order_recvr = t
+  ;
+
+  _t1 =
+    SELECT t
+    FROM all_accounts:s -(send_bonus:e)-> BonusOrder:t
+    ACCUM
+      CASE
+        WHEN s == t.@order_recvr
+          THEN @@ancestor_order_counter += (s.@ancestor -> 1, 0)
+        ELSE @@ancestor_order_counter += (s.@ancestor -> 1, 1)
+      END
+  ;
+
+  FOREACH (ancestor, num_orders, num_nonself_orders) IN @@ancestor_order_counter DO
+    IF num_orders >= min_num_orders THEN
+      @@comps_stats += tp_comp_stat(
+        ancestor, num_orders, num_nonself_orders, 1.0 * num_nonself_orders / num_orders
+      );
+    END;
+  END;
+
+  FOREACH g IN @@comps_stats DO
+    PRINT g.ancestor AS ancestor,
+          g.num_orders AS num_orders,
+          g.num_nonself_orders AS num_nonself_orders,
+          g.nonself_order_ratio AS nonself_order_ratio
+    ;
+  END;
+}

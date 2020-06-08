@@ -1,0 +1,29 @@
+CREATE QUERY get_cc_accounts(SET<VERTEX<Account>> ancestor_ids) FOR GRAPH MyGraph { 
+	SetAccum<VERTEX<Account>> @@cc_accounts;
+	SetAccum<VERTEX<BonusOrder>> @@cc_orders;
+  
+	children = {ancestor_ids};
+	_t0 =
+	  SELECT t
+	  FROM children:t
+	  POST-ACCUM @@cc_accounts += t
+	;
+	
+	WHILE (children.size() > 0) DO
+    children =
+      SELECT t
+      FROM children:s -(invite)-> Account:t
+	    POST-ACCUM @@cc_accounts += t
+    ;
+    _t1 =
+	    SELECT t
+	    FROM children:s -(send_bonus)-> BonusOrder:t
+	    POST-ACCUM @@cc_orders += t
+	  ;
+  END;
+	
+	PRINT @@cc_accounts AS cc_accounts,
+	      @@cc_orders AS cc_orders
+	;
+
+}

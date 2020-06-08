@@ -1,0 +1,12 @@
+CREATE QUERY label_stats() FOR GRAPH MyGraph { 
+	GroupByAccum<INT label, SumAccum<INT> cnt> @@label_cnt;
+  all_accounts = {Account.*};
+	_t0 = 
+	  SELECT t
+	  FROM all_accounts:t
+	  POST-ACCUM @@label_cnt += (t.label -> 1)
+	;
+	
+	PRINT @@label_cnt;
+	
+}
